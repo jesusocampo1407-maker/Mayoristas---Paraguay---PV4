@@ -153,11 +153,11 @@ jobs:
           retention-days: 30
 
       - name: Publicar la APK en «Releases» (descarga directa del .apk)
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          gh release create "apk-debug-v10.2-${{ github.run_number }}" MayoristasParaguay-debug.apk \
-            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
-            --title "APK de depuración V10.2 #${{ github.run_number }}" \
-            --notes-file release-notes.md
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-debug-v10.2-${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          name: APK de depuración V10.2 #${{ github.run_number }}
+          body_path: release-notes.md
+          prerelease: true
+          files: MayoristasParaguay-debug.apk
