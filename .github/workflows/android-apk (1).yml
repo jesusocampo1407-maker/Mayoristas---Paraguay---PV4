@@ -1,0 +1,163 @@
+# Mayoristas Paraguay · APK de depuración EMPAQUETANDO LA V10.2 DE main (Capacitor 6)
+# Va SOLO en la rama «android-apk», en la ruta .github/workflows/android-apk.yml
+# Lee main (solo lectura). No modifica main, ni GitHub Pages, ni Firebase.
+# Se ejecuta sola al guardar un cambio en la rama android-apk (y se puede repetir con «Re-run all jobs»).
+name: Build Android APK (debug, V10.2)
+
+on:
+  push:
+    branches: [android-apk]
+
+permissions:
+  contents: write   # solo para adjuntar la APK a un Release (crea una etiqueta; no cambia ninguna rama)
+
+env:
+  # La construcción SE DETIENE si el texto de window.MP_VERSION del index.html de main no coincide con esta expresión.
+  # Si tu V10.2 usa otro formato en MP_VERSION, cambiá SOLO esta línea (ej.: 'v10\.2').
+  EXPECTED_VERSION_REGEX: '10[._-]2'
+
+jobs:
+  apk:
+    if: github.ref == 'refs/heads/android-apk'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Descargar la rama android-apk (con el workflow)
+        uses: actions/checkout@v4
+        with:
+          path: branch-src
+
+      - name: Descargar main (SOLO LECTURA; fuente exacta de la V10.2)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: main-src
+
+      - name: Instalar Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Comprobar que main contiene la V10.2
+        run: |
+          set -euo pipefail
+          test -f main-src/index.html || { echo "::error::main no tiene index.html en la raíz"; exit 1; }
+          VER=$(grep -o 'MP_VERSION *= *"[^"]*"' main-src/index.html | head -1 | sed 's/^[^"]*"//; s/"$//' || true)
+          SHA=$(sha256sum main-src/index.html | cut -d' ' -f1)
+          MAINSHA=$(git -C main-src rev-parse HEAD)
+          echo "Commit de main : $MAINSHA"
+          echo "MP_VERSION     : ${VER:-<no encontrada>}"
+          echo "SHA-256 index  : $SHA"
+          echo "Tamaño         : $(wc -c < main-src/index.html) bytes"
+          [ -n "$VER" ] || { echo "::error::El index.html de main no define window.MP_VERSION; no puedo confirmar que sea la V10.2. No se construye."; exit 1; }
+          echo "$VER" | grep -Eq "$EXPECTED_VERSION_REGEX" || { echo "::error::main NO es la V10.2: MP_VERSION='$VER' no coincide con '$EXPECTED_VERSION_REGEX'. No se construye."; exit 1; }
+          if ! cmp -s main-src/index.html branch-src/index.html; then echo "::warning::El index.html de la rama android-apk difiere de main. La APK usa el de main."; fi
+          { echo "MAIN_COMMIT=$MAINSHA"; echo "MP_VERSION=$VER"; echo "INDEX_SHA256=$SHA"; } >> "$GITHUB_ENV"
+
+      - name: Preparar la web desde main (copia; main no se modifica)
+        run: |
+          set -euo pipefail
+          mkdir -p apk-build/www
+          tar -C main-src --exclude='.git' --exclude='.github' --exclude='node_modules' --exclude='tests' \
+              --exclude='*.py' --exclude='*.mjs' --exclude='*.rules' --exclude='*.md' -cf - . | tar -C apk-build/www -xf -
+          test -s apk-build/www/index.html
+          # En la APK la dirección de la app es https://localhost; los enlaces de compartir deben usar la web pública.
+          # Se cambia SOLO en la copia apk-build/www (nunca en main).
+          python3 - <<'PY'
+          import re
+          p = "apk-build/www/index.html"
+          s = open(p, encoding="utf-8").read()
+          pat = re.compile(r'function siteUrl\(\)\{[^{}]*\}')
+          m = pat.findall(s)
+          URL = "https://jesusocampo1407-maker.github.io/Mayoristas---Paraguay---PV4/"
+          if len(m) == 1:
+              s = pat.sub(lambda _: 'function siteUrl(){return "%s"}' % URL, s, count=1)
+              open(p, "w", encoding="utf-8").write(s)
+              print("siteUrl() reemplazada:", m[0])
+          else:
+              print("::warning::siteUrl() encontrada %d veces; no se modificó (los enlaces de compartir podrían usar https://localhost)" % len(m))
+          PY
+          rc=0; diff main-src/index.html apk-build/www/index.html > /tmp/index.diff || rc=$?
+          [ "$rc" -le 1 ] || { echo "::error::No pude comparar la copia con main"; exit 1; }
+          CHANGED=$(grep -c '^<' /tmp/index.diff || true)
+          echo "Líneas de index.html distintas respecto de main: $CHANGED (máximo esperado: 1, la de siteUrl)"
+          [ "$CHANGED" -le 1 ] || { echo "::error::La copia difiere de main en más de una línea"; exit 1; }
+
+      - name: Crear el proyecto Capacitor (com.mayoristasparaguay.app)
+        working-directory: apk-build
+        run: |
+          set -euo pipefail
+          npm init -y
+          npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6
+          cat > capacitor.config.json <<'EOF'
+          {
+            "appId": "com.mayoristasparaguay.app",
+            "appName": "Mayoristas Paraguay",
+            "webDir": "www",
+            "backgroundColor": "#0b0b0c",
+            "server": { "androidScheme": "https" }
+          }
+          EOF
+          npx cap add android
+          npx cap sync android
+
+      - name: Compilar la APK de depuración
+        working-directory: apk-build/android
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Verificar que la APK contiene la V10.2
+        run: |
+          set -euo pipefail
+          APK=apk-build/android/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK" || { echo "::error::No se generó la APK"; exit 1; }
+          cp "$APK" MayoristasParaguay-debug.apk
+          unzip -p MayoristasParaguay-debug.apk assets/public/index.html > /tmp/apk-index.html
+          test -s /tmp/apk-index.html || { echo "::error::La APK no contiene assets/public/index.html"; exit 1; }
+          cmp -s /tmp/apk-index.html apk-build/www/index.html || { echo "::error::El index.html DENTRO de la APK no es el preparado desde main"; exit 1; }
+          APKVER=$(grep -o 'MP_VERSION *= *"[^"]*"' /tmp/apk-index.html | head -1 | sed 's/^[^"]*"//; s/"$//' || true)
+          echo "MP_VERSION dentro de la APK: $APKVER"
+          [ "$APKVER" = "$MP_VERSION" ] || { echo "::error::La versión dentro de la APK ('$APKVER') no coincide con la de main ('$MP_VERSION')"; exit 1; }
+          AAPT=$(ls "$ANDROID_HOME"/build-tools/*/aapt2 2>/dev/null | tail -1 || true)
+          if [ -n "$AAPT" ]; then
+            PKG=$("$AAPT" dump packagename MayoristasParaguay-debug.apk)
+            echo "Identificador de la APK: $PKG"
+            [ "$PKG" = "com.mayoristasparaguay.app" ] || { echo "::error::Identificador incorrecto: $PKG"; exit 1; }
+          else
+            echo "::warning::No encontré aapt2; no se pudo verificar el identificador del paquete"
+          fi
+          ls -l MayoristasParaguay-debug.apk
+          {
+            echo "APK de depuración de Mayoristas Paraguay (com.mayoristasparaguay.app), solo para instalar y probar."
+            echo
+            echo "- Versión empaquetada (MP_VERSION): $MP_VERSION"
+            echo "- Commit de main usado: $MAIN_COMMIT"
+            echo "- SHA-256 del index.html de main: $INDEX_SHA256"
+            echo "- Construida desde la rama android-apk (commit $GITHUB_SHA)"
+          } > release-notes.md
+          cp release-notes.md "$GITHUB_STEP_SUMMARY"
+
+      - name: Guardar la APK como archivo de la ejecución
+        uses: actions/upload-artifact@v4
+        with:
+          name: MayoristasParaguay-debug-apk
+          path: MayoristasParaguay-debug.apk
+          retention-days: 30
+
+      - name: Publicar la APK en «Releases» (descarga directa del .apk)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release create "apk-debug-v10.2-${{ github.run_number }}" MayoristasParaguay-debug.apk \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
+            --title "APK de depuración V10.2 #${{ github.run_number }}" \
+            --notes-file release-notes.md
