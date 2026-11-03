@@ -1,0 +1,429 @@
+// REGLAS v8 — publicación automática de negocios (BORRADOR SIN PUBLICAR Y SIN PROBAR EN EMULADOR)
+// Base: el firestore.rules que compartiste. Cambios marcados con «v8».
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- FUNCIONES ----------
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function verified() {
+      return signedIn()
+        && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function profile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function roleOf() {
+      return profile().role;
+    }
+
+    function isModStatus(s) {
+      return s in ['pending', 'approved', 'rejected'];
+    }
+
+    function validName(n) {
+      return n is string && n.size() >= 2 && n.size() <= 80;
+    }
+
+    // Solo el administrador puede cambiar campos de moderación.
+    function onlyModeration() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'reviewedBy', 'reviewedAt'])
+        && isModStatus(request.resource.data.status);
+    }
+
+    // ---------- ADMINISTRADORES ----------
+    // Los administradores se crean manualmente en Firebase.
+    match /admins/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow list, create, update, delete: if false;
+    }
+
+    // ---------- PERFILES ----------
+    match /users/{uid} {
+      allow get: if signedIn()
+        && (request.auth.uid == uid || isAdmin());
+
+      allow list: if false;
+
+      // Se permite crear el perfil antes de verificar el correo.
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.keys()
+            .hasOnly(['name', 'email', 'role', 'createdAt'])
+        && validName(request.resource.data.name)
+        && request.resource.data.role in ['buyer', 'provider']
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.createdAt == request.time;
+
+      // Solo se puede cambiar el nombre.
+      allow update: if signedIn()
+        && (request.auth.uid == uid || isAdmin())
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['name'])
+        && validName(request.resource.data.name);
+
+      allow delete: if false;
+    }
+
+    // ---------- SOLICITUDES DE NEGOCIOS ----------
+    // ID del documento = UID del mayorista.
+    match /businessRequests/{uid} {
+
+      function validBiz(d) {
+        return d.name is string
+          && d.name.size() >= 2
+          && d.name.size() <= 80
+
+          && d.ownerName is string
+          && d.ownerName.size() >= 2
+          && d.ownerName.size() <= 80
+
+          && d.city is string
+          && d.city.size() >= 2
+          && d.city.size() <= 60
+
+          && d.whatsapp is string
+          && d.whatsapp.matches('^[0-9]{9,15}$')
+
+          && d.products is string
+          && d.products.size() >= 3
+          && d.products.size() <= 500
+
+          && d.categories is list
+          && d.categories.size() >= 1
+          && d.categories.size() <= 12
+
+          && d.shipping in ['pais', 'ciudades', 'local', 'consultar']
+
+          && d.shippingNotes is string
+          && d.shippingNotes.size() <= 200
+
+          && d.instagram is string
+          && d.instagram.matches('^[A-Za-z0-9._]{0,30}$')
+
+          && d.website is string
+          && (
+            d.website == ''
+            || d.website.matches('^https?://.{3,190}$')
+          )
+
+          && d.imports is bool
+          && d.exports is bool
+
+          // Campos opcionales de la nueva versión.
+          && (
+            !('minOrder' in d)
+            || (d.minOrder is string && d.minOrder.size() <= 60)
+          )
+
+          && (
+            !('address' in d)
+            || (d.address is string && d.address.size() <= 100)
+          );
+      }
+
+      // v8: solo el propietario y el administrador. Se quitó la lectura de solicitudes aprobadas por
+      // terceros (incluían el nombre del responsable y ninguna pantalla la usa; el catálogo lee `businesses`).
+      allow get: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow list: if isAdmin();
+
+      // v8: campos que puede escribir el dueño o el administrador al editar el negocio.
+      function editKeys() {
+        return ['name','ownerName','city','whatsapp','products','categories','shipping','shippingNotes',
+                'instagram','website','imports','exports','minOrder','address'];
+      }
+      function ownerWrite() {
+        return verified() && request.auth.uid == uid && roleOf() == 'provider'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(editKeys().concat(['status','updatedAt']))
+          && request.resource.data.updatedAt == request.time
+          && validBiz(request.resource.data);
+      }
+
+      // Crear una solicitud de negocio.
+      allow create: if verified()
+        && request.auth.uid == uid
+        && roleOf() == 'provider'
+
+        && request.resource.data.keys().hasOnly([
+          'ownerUid',
+          'name',
+          'ownerName',
+          'city',
+          'whatsapp',
+          'products',
+          'categories',
+          'shipping',
+          'shippingNotes',
+          'instagram',
+          'website',
+          'imports',
+          'exports',
+          'minOrder',
+          'address',
+          'status',
+          'createdAt',
+          'updatedAt'
+        ])
+
+        && request.resource.data.ownerUid == uid
+        // v8: 'published' = publicación automática; 'pending' solo para la app anterior durante la transición.
+        && request.resource.data.status in ['pending', 'published']
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && validBiz(request.resource.data);
+
+      allow update:
+        // v8 (a): el mayorista edita su negocio y queda publicado. Solo si no fue rechazado por el administrador.
+        if (
+          ownerWrite()
+          && resource.data.status in ['pending', 'approved', 'published']
+          && request.resource.data.status == 'published'
+        )
+        // (b) compatibilidad con la app anterior: reenviar una solicitud pendiente o rechazada.
+        || (
+          ownerWrite()
+          && resource.data.status in ['pending', 'rejected']
+          && request.resource.data.status == 'pending'
+        )
+        // (c) El administrador puede moderar (cambiar el estado).
+        || (
+          isAdmin()
+          && onlyModeration()
+        )
+        // (d) v8: el administrador puede corregir cualquier dato comercial (el estado no cambia).
+        || (
+          isAdmin()
+          && request.resource.data.status == resource.data.status
+          && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(editKeys().concat(['updatedAt']))
+          && request.resource.data.updatedAt == request.time
+          && validBiz(request.resource.data)
+        );
+
+      allow delete: if false;
+    }
+
+    // ---------- SOLICITUDES DE CAMBIO ----------
+    match /changeRequests/{id} {
+
+      function validChanges(c) {
+        return c is map
+          && c.keys().size() >= 1
+          && c.keys().hasOnly([
+            'whatsapp',
+            'products',
+            'instagram',
+            'website'
+          ])
+
+          && (
+            !('whatsapp' in c)
+            || (
+              c.whatsapp is string
+              && c.whatsapp.matches('^[0-9]{9,15}$')
+            )
+          )
+
+          && (
+            !('products' in c)
+            || (
+              c.products is string
+              && c.products.size() >= 3
+              && c.products.size() <= 500
+            )
+          )
+
+          && (
+            !('instagram' in c)
+            || (
+              c.instagram is string
+              && c.instagram.matches('^[A-Za-z0-9._]{0,30}$')
+            )
+          )
+
+          && (
+            !('website' in c)
+            || (
+              c.website is string
+              && (
+                c.website == ''
+                || c.website.matches('^https?://.{3,190}$')
+              )
+            )
+          );
+      }
+
+      allow create: if verified()
+        && roleOf() == 'provider'
+
+        && exists(
+          /databases/$(database)/documents/businessRequests/$(request.auth.uid)
+        )
+
+        && get(
+          /databases/$(database)/documents/businessRequests/$(request.auth.uid)
+        ).data.status == 'approved'
+
+        && request.resource.data.keys().hasOnly([
+          'ownerUid',
+          'message',
+          'status',
+          'createdAt',
+          'changes'
+        ])
+
+        && (
+          !('changes' in request.resource.data)
+          || validChanges(request.resource.data.changes)
+        )
+
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.message is string
+        && request.resource.data.message.size() >= 5
+        && request.resource.data.message.size() <= 500
+        && request.resource.data.createdAt == request.time;
+
+      allow get, list: if signedIn()
+        && (
+          resource.data.ownerUid == request.auth.uid
+          || isAdmin()
+        );
+
+      allow update: if isAdmin() && onlyModeration();
+
+      allow delete: if false;
+    }
+
+    // ---------- OPINIONES ----------
+    match /reviews/{rid} {
+
+      // Las aprobadas son públicas.
+      // Las pendientes y rechazadas solo las ven su autor y el administrador.
+      allow get, list: if resource.data.status == 'approved'
+        || (signedIn() && resource.data.authorUid == request.auth.uid)
+        || isAdmin();
+
+      // Admite IDs numéricos existentes y UID alfanuméricos nuevos.
+      allow create: if verified()
+        && roleOf() == 'buyer'
+
+        && request.resource.data.keys().hasOnly([
+          'providerId',
+          'rating',
+          'text',
+          'authorUid',
+          'authorName',
+          'authorType',
+          'verifiedPurchase',
+          'status',
+          'createdAt'
+        ])
+
+        && request.resource.data.providerId is string
+        && request.resource.data.providerId.matches(
+          '^([0-9]{9,15}|[A-Za-z0-9]{20,40})$'
+        )
+
+        && rid == request.resource.data.providerId + '_' + request.auth.uid
+        && request.resource.data.authorUid == request.auth.uid
+
+        && request.resource.data.authorName is string
+        && request.resource.data.authorName.size() >= 1
+        && request.resource.data.authorName.size() <= 40
+
+        && request.resource.data.authorType == 'registered'
+        && request.resource.data.verifiedPurchase == false
+        && request.resource.data.status == 'pending'
+
+        && request.resource.data.rating is int
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5
+
+        && request.resource.data.text is string
+        && request.resource.data.text.size() >= 5
+        && request.resource.data.text.size() <= 600
+
+        && request.resource.data.createdAt == request.time;
+
+      allow update: if isAdmin() && onlyModeration();
+
+      allow delete: if (
+          signedIn()
+          && resource.data.authorUid == request.auth.uid
+        )
+        || isAdmin();
+    }
+
+    // ---------- NEGOCIOS PÚBLICOS (v8) ----------
+    // id del documento = uid del dueño. Solo datos públicos: sin correo, sin uid del responsable, sin su nombre.
+    // El dueño verificado puede crear/editar SU ficha únicamente si coincide campo por campo con su solicitud
+    // validada (businessRequests/{uid}) escrita en el mismo lote. El administrador puede escribir, ocultar y volver a publicar.
+    match /businesses/{uid} {
+
+      function ownerPub() {
+        let r = getAfter(/databases/$(database)/documents/businessRequests/$(uid)).data;
+        let b = request.resource.data;
+        return verified() && request.auth.uid == uid && roleOf() == 'provider'
+          && existsAfter(/databases/$(database)/documents/businessRequests/$(uid))
+          && r.ownerUid == uid
+          && r.status == 'published'
+          && b.keys().hasOnly(['rk','n','c','cs','k','d','m','a','ig','web','w','sh','status','publishedAt','updatedAt'])
+          && b.keys().hasAll(['rk','n','c','cs','k','d','m','a','ig','web','w','sh','status','publishedAt','updatedAt'])
+          && b.rk == uid
+          && b.status == 'published'
+          && b.n == r.name
+          && b.c == r.city
+          && b.cs == [r.city]
+          && b.k == r.categories
+          && b.d == r.products
+          && b.m == r.get('minOrder', '')
+          && b.a == r.get('address', '')
+          && b.ig == r.instagram
+          && b.web == r.website
+          && b.w == r.whatsapp
+          && b.w.matches('^5959[0-9]{8}$')
+          && b.sh == r.shipping
+          && b.updatedAt == request.time;
+      }
+
+      // Lectura de una ficha: pública si está publicada; el dueño y el administrador siempre pueden leerla.
+      allow get: if isAdmin()
+        || (signedIn() && request.auth.uid == uid)
+        || resource.data.status == 'published';
+
+      // El catálogo debe consultar con where('status','==','published').
+      allow list: if resource.data.status == 'published'
+        || isAdmin();
+
+      allow create: if isAdmin()
+        || (ownerPub() && request.resource.data.publishedAt == request.time);
+
+      // El dueño solo edita mientras esté publicada (si el administrador la ocultó, no puede reactivarla).
+      allow update: if isAdmin()
+        || (
+          ownerPub()
+          && resource.data.status == 'published'
+          && request.resource.data.publishedAt == resource.data.publishedAt
+        );
+
+      allow delete: if false;
+    }
+
+    // ---------- TODO LO DEMÁS: DENEGADO ----------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
