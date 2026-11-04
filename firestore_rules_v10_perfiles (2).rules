@@ -332,9 +332,11 @@ service cloud.firestore {
     // ---------- OPINIONES ----------
     match /reviews/{rid} {
 
-      // Los comentarios son públicos para que cualquier visitante pueda leerlos.
-      // La app muestra todos los comentarios guardados, incluidos los antiguos que quedaron pendientes.
-      allow get, list: if true;
+      // Las opiniones publicadas son públicas; las pendientes/rechazadas solo las ve su autor y el administrador.
+      // La app consulta status == 'approved', de modo que Firestore puede autorizar la consulta de forma segura.
+      allow get, list: if resource.data.status == 'approved'
+        || (signedIn() && resource.data.authorUid == request.auth.uid)
+        || isAdmin();
 
       // Admite IDs numéricos existentes y UID alfanuméricos nuevos.
       allow create: if verified()
