@@ -426,7 +426,7 @@ function rvId(p){return String(p.rk||p.w)}
 var AVATAR_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.6"/><path d="M4.8 20.2c.6-3.6 3.5-5.7 7.2-5.7s6.6 2.1 7.2 5.7"/></svg>';
 function rvAuthor(r){var n=rvEsc(r.authorName);if(!/^[A-Za-z0-9]{20,40}$/.test(r.authorUid||""))return '<b>'+n+'</b>';
   return '<button type="button" class="rv-au" data-u="'+r.authorUid+'" data-n="'+n+'" aria-label="Ver perfil público de '+n+'"><span class="av av-s" data-u="'+r.authorUid+'">'+AVATAR_SVG+'</span><b>'+n+'</b></button>'}
-var RV={cache:{},open:{},shown:{},form:{}},RV_STEP=2;
+var RV={cache:{},open:{},shown:{},form:{},unsub:{}},RV_STEP=2;
 var RV_STAR='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8l2.9 6 6.5.9-4.7 4.6 1.1 6.5L12 17.7l-5.8 3.1 1.1-6.5L2.6 9.7l6.5-.9z"/></svg>';
 function rvEsc(s){return String(s).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
 function rvStars(v){var w=Math.max(0,Math.min(5,v))/5*100,s=RV_STAR+RV_STAR+RV_STAR+RV_STAR+RV_STAR;return '<span class="stars" role="img" aria-label="'+v.toFixed(1)+' de 5 estrellas">'+s+'<span class="on" style="width:'+w+'%">'+s+'</span></span>'}
@@ -453,7 +453,16 @@ function rvBlock(p){var id=rvId(p),L=RV.cache[id],o=RV.open[id],f=RV.form[id]||{
       +(f.msg?'<div class="rv-msg'+(f.err?' err':'')+'" role="status">'+rvEsc(f.msg)+'</div>':'')+'</div>'}
   return h+'</div>'}
 function rvRefresh(id){var el=document.querySelector('.rv[data-rv-id="'+id+'"]');if(!el)return;var p=P.filter(function(x){return rvId(x)===id})[0];el.outerHTML=rvBlock(p)}
-function rvLoad(id){return ReviewsAPI.list(id).then(function(a){RV.cache[id]=a||[]},function(){RV.cache[id]=[]}).then(function(){rvRefresh(id)})}
+function rvSubscribe(id){
+  if(!RV.unsub)RV.unsub={};
+  if(RV.unsub[id]||!ReviewsAPI.adapter||typeof ReviewsAPI.adapter.subscribe!=="function")return;
+  try{RV.unsub[id]=ReviewsAPI.adapter.subscribe(id,function(a){RV.cache[id]=a||[];rvRefresh(id)},function(){RV.cache[id]=[];rvRefresh(id)})}
+  catch(e){RV.unsub[id]=null}
+}
+function rvLoad(id){
+  if(ReviewsAPI.adapter&&typeof ReviewsAPI.adapter.subscribe==="function"){rvSubscribe(id);return Promise.resolve()}
+  return ReviewsAPI.list(id).then(function(a){RV.cache[id]=a||[]},function(){RV.cache[id]=[]}).then(function(){rvRefresh(id)})
+}
 $("list").addEventListener("click",function(e){var b=e.target.closest("[data-rv]");if(!b)return;var box=b.closest(".rv");if(!box)return;var id=box.dataset.rvId,a=b.dataset.rv,f=RV.form[id]=RV.form[id]||{};
   if(a==="toggle"){RV.open[id]=!RV.open[id];if(RV.open[id])RV.shown[id]=RV_STEP}
   else if(a==="more")RV.shown[id]=(RV.shown[id]||RV_STEP)+RV_STEP;
@@ -564,10 +573,13 @@ function btn(){const b=$("acctBtn");if(!b)return;b.classList.toggle("in",!!S.use
 /* ---------- Opiniones: adaptador Firestore para la capa ReviewsAPI de la v6 ---------- */
 function installReviews(){
   if(/demo-resenas/.test(location.hash)||!window.ReviewsAPI)return;
+  const mapReview=function(d){const r=d.data();return{id:d.id,providerId:r.providerId,rating:r.rating,text:r.text,authorName:r.authorName,authorUid:r.authorUid,authorType:"registered",verifiedPurchase:false,status:"approved",createdAt:r.createdAt&&r.createdAt.toDate?r.createdAt.toDate().toISOString():new Date(0).toISOString()}};
+  const queryReviews=function(pid){return F.query(F.collection(db,"reviews"),F.where("providerId","==",pid),F.where("status","==","approved"))};
   const ad={name:"firestore",
-    list:async function(pid){
-      const q=F.query(F.collection(db,"reviews"),F.where("providerId","==",pid),F.where("status","==","approved"));
-      const s=await F.getDocs(q);return s.docs.map(function(d){const r=d.data();return{id:d.id,providerId:r.providerId,rating:r.rating,text:r.text,authorName:r.authorName,authorUid:r.authorUid,authorType:"registered",verifiedPurchase:false,status:"approved",createdAt:r.createdAt&&r.createdAt.toDate?r.createdAt.toDate().toISOString():new Date(0).toISOString()}})},
+    list:async function(pid){const q=queryReviews(pid);const s=await F.getDocs(q);return s.docs.map(mapReview)},
+    subscribe:function(pid,onData,onError){
+      return F.onSnapshot(queryReviews(pid),function(s){onData(s.docs.map(mapReview))},function(e){if(onError)onError(e)});
+    },
     currentUser:function(){return(S.user&&verified()&&S.profile&&S.profile.role==="buyer")?{name:S.profile.name,uid:S.user.uid}:null},
     add:async function(pid,d){
       const uid=S.user.uid;
