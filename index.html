@@ -426,11 +426,11 @@ function rvId(p){return String(p.rk||p.w)}
 var AVATAR_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.6"/><path d="M4.8 20.2c.6-3.6 3.5-5.7 7.2-5.7s6.6 2.1 7.2 5.7"/></svg>';
 function rvAuthor(r){var n=rvEsc(r.authorName);if(!/^[A-Za-z0-9]{20,40}$/.test(r.authorUid||""))return '<b>'+n+'</b>';
   return '<button type="button" class="rv-au" data-u="'+r.authorUid+'" data-n="'+n+'" aria-label="Ver perfil público de '+n+'"><span class="av av-s" data-u="'+r.authorUid+'">'+AVATAR_SVG+'</span><b>'+n+'</b></button>'}
-var RV={cache:{},open:{},shown:{},form:{},unsub:{}},RV_STEP=2;
+var RV={cache:{},open:{},shown:{},form:{},unsub:{},errors:{}},RV_STEP=2;
 var RV_STAR='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8l2.9 6 6.5.9-4.7 4.6 1.1 6.5L12 17.7l-5.8 3.1 1.1-6.5L2.6 9.7l6.5-.9z"/></svg>';
 function rvEsc(s){return String(s).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
 function rvStars(v){var w=Math.max(0,Math.min(5,v))/5*100,s=RV_STAR+RV_STAR+RV_STAR+RV_STAR+RV_STAR;return '<span class="stars" role="img" aria-label="'+v.toFixed(1)+' de 5 estrellas">'+s+'<span class="on" style="width:'+w+'%">'+s+'</span></span>'}
-function rvSorted(id){return (RV.cache[id]||[]).filter(function(r){return r.status==="approved"}).sort(function(a,b){return b.createdAt<a.createdAt?-1:b.createdAt>a.createdAt?1:0})}
+function rvSorted(id){return (RV.cache[id]||[]).slice().sort(function(a,b){return b.createdAt<a.createdAt?-1:b.createdAt>a.createdAt?1:0})}
 function rvBadge(r){var h="";
   if(r.authorType==="registered")h+='<span class="rv-bd">Usuario registrado</span>';
   if(r.verifiedPurchase===true&&ReviewsAPI.capabilities.verifiedPurchase)h+='<span class="rv-bd">Compra verificada</span>';
@@ -439,6 +439,7 @@ function rvBlock(p){var id=rvId(p),L=RV.cache[id],o=RV.open[id],f=RV.form[id]||{
   if(!L){h+='<div class="rv-sum">Cargando opiniones…</div></div>';return h}
   var A=rvSorted(id),n=A.length,avg=n?A.reduce(function(s,r){return s+r.rating},0)/n:0;
   h+='<div class="rv-sum">'+(n?rvStars(avg)+'<b>'+avg.toFixed(1)+'</b><span>'+n+(n===1?' opinión':' opiniones')+'</span>':'<span>Sin reseñas todavía. ¡Sé el primero en opinar!</span>')+'</div>';
+  if(RV.errors[id])h+='<p class="rv-msg err" role="alert">'+rvEsc(RV.errors[id])+'</p>';
   h+='<div class="rv-acts"><button type="button" class="rv-b" data-rv="toggle" aria-expanded="'+(o?'true':'false')+'">'+(o?'Ocultar comentarios':'Ver comentarios')+'</button><button type="button" class="rv-b gold" data-rv="form">Dejar una opinión</button></div>';
   if(o){var sh=RV.shown[id]||RV_STEP;h+='<div class="rv-panel">';
     if(!n)h+='<p class="rv-empty">Sin reseñas todavía. ¡Sé el primero en opinar!</p>';
@@ -459,8 +460,8 @@ function rvRefresh(id){var el=document.querySelector('.rv[data-rv-id="'+id+'"]')
 function rvSubscribe(id){
   if(!RV.unsub)RV.unsub={};
   if(RV.unsub[id]||!ReviewsAPI.adapter||typeof ReviewsAPI.adapter.subscribe!=="function")return;
-  try{RV.unsub[id]=ReviewsAPI.adapter.subscribe(id,function(a){RV.cache[id]=a||[];rvRefresh(id)},function(){RV.cache[id]=[];rvRefresh(id)})}
-  catch(e){RV.unsub[id]=null}
+  try{RV.unsub[id]=ReviewsAPI.adapter.subscribe(id,function(a){RV.errors[id]="";RV.cache[id]=a||[];rvRefresh(id)},function(e){RV.cache[id]=[];RV.errors[id]=(e&&e.code==="permission-denied")?"Firebase está bloqueando la lectura pública de comentarios. Hay que publicar las reglas actualizadas.":"No se pudieron cargar los comentarios. Revisá la conexión e intentá de nuevo.";rvRefresh(id)})}
+  catch(e){RV.unsub[id]=null;RV.errors[id]="No se pudieron cargar los comentarios."}
 }
 function rvLoad(id){
   if(ReviewsAPI.adapter&&typeof ReviewsAPI.adapter.subscribe==="function"){rvSubscribe(id);return Promise.resolve()}
@@ -589,8 +590,9 @@ function btn(){const b=$("acctBtn");if(!b)return;b.classList.toggle("in",!!S.use
 /* ---------- Opiniones: adaptador Firestore para la capa ReviewsAPI de la v6 ---------- */
 function installReviews(){
   if(/demo-resenas/.test(location.hash)||!window.ReviewsAPI)return;
-  const mapReview=function(d){const r=d.data();return{id:d.id,providerId:r.providerId,rating:r.rating,text:r.text,authorName:r.authorName,authorUid:r.authorUid,authorType:"registered",verifiedPurchase:false,status:"approved",createdAt:r.createdAt&&r.createdAt.toDate?r.createdAt.toDate().toISOString():new Date(0).toISOString()}};
-  const queryReviews=function(pid){return F.query(F.collection(db,"reviews"),F.where("providerId","==",pid),F.where("status","==","approved"))};
+  const mapReview=function(d){const r=d.data();return{id:d.id,providerId:r.providerId,rating:r.rating,text:r.text,authorName:r.authorName,authorUid:r.authorUid,authorType:r.authorType||"registered",verifiedPurchase:r.verifiedPurchase===true,status:r.status||"approved",createdAt:r.createdAt&&r.createdAt.toDate?r.createdAt.toDate().toISOString():new Date(0).toISOString()}};
+  /* Consultar solo por proveedor evita el índice compuesto providerId+status que puede bloquear la lectura pública. */
+  const queryReviews=function(pid){return F.query(F.collection(db,"reviews"),F.where("providerId","==",pid))};
   const ad={name:"firestore",
     list:async function(pid){const q=queryReviews(pid);const s=await F.getDocs(q);return s.docs.map(mapReview)},
     subscribe:function(pid,onData,onError){
