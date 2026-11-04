@@ -220,7 +220,7 @@ mask-image:linear-gradient(to right,transparent,#000 2%,#000 98%,transparent),li
 </header>
 <div class="chips" id="chips"></div>
 <div class="cta"><div><b>¿Sos mayorista?</b><br><span>Publicá tu negocio y recibí consultas por WhatsApp.</span></div><button class="btn gold" id="regBtn" type="button">Registrar mi negocio</button></div>
-<div class="note">Los datos fueron proporcionados por cada negocio. Las compras mínimas son <b>orientativas</b>. Si algo está mal, usá «Solicitar una corrección».</div>
+<div class="note">Los datos fueron proporcionados por cada negocio. Las compras mínimas son <b>orientativas</b>.</div>
 <div class="count" id="count"></div>
 <div class="list" id="list"></div>
 
@@ -348,9 +348,9 @@ function render(){
     if(ci&&(p.cs||[p.c]).indexOf(ci)<0)return false;
     return true})),r=S.r;
   $("count").textContent=r.length+(r.length===1?" proveedor encontrado":" proveedores encontrados")+(ci?" en "+ci:"");
-  $("list").innerHTML=r.length?r.map(function(p,k){var i=P.indexOf(p),m=S.m[i]||{};return hd(S,k,m)+'<div class="card"><div class="photos" data-i="'+i+'">'+photos(p)+'</div><div class="body"><h2 class="name">'+p.n+'</h2><p class="city">'+IC.pin+' '+p.c+', Paraguay</p><div class="tags">'+p.cl.map(function(k){return '<span class="tag">'+k+'</span>'}).join("")+'</div>'+info(p)+ship(p)+(m.why?'<p class="meta" style="margin:0 0 12px"><i>'+m.why+'</i></p>':'')+rvBlock(p)+ctaBtns(p)+'<a class="fix" target="_blank" rel="noopener" href="'+fixUrl(p)+'">Solicitar una corrección</a></div></div>'}).join(""):'<div class="empty">😕<br>No se encontraron proveedores.<br>Probá con otra palabra, categoría o ciudad.<br><br>'+clr()+'<a class="btn wa" style="flex:none;display:inline-block;padding:12px 18px" target="_blank" rel="noopener" href="https://docs.google.com/forms/d/1aGUk3d5jGdAYX7tow7YBKXH9ZX3a4exr_p4TLLzSkTM/viewform">Soy mayorista: registrar mi negocio</a></div>';
+  $("list").innerHTML=r.length?r.map(function(p,k){var i=P.indexOf(p),m=S.m[i]||{};return hd(S,k,m)+'<div class="card"><div class="photos" data-i="'+i+'">'+photos(p)+'</div><div class="body"><h2 class="name">'+p.n+'</h2><p class="city">'+IC.pin+' '+p.c+', Paraguay</p><div class="tags">'+p.cl.map(function(k){return '<span class="tag">'+k+'</span>'}).join("")+'</div>'+info(p)+ship(p)+(m.why?'<p class="meta" style="margin:0 0 12px"><i>'+m.why+'</i></p>':'')+rvBlock(p)+ctaBtns(p)+'</div></div>'}).join(""):'<div class="empty">😕<br>No se encontraron proveedores.<br>Probá con otra palabra, categoría o ciudad.<br><br>'+clr()+'<a class="btn wa" style="flex:none;display:inline-block;padding:12px 18px" target="_blank" rel="noopener" href="https://docs.google.com/forms/d/1aGUk3d5jGdAYX7tow7YBKXH9ZX3a4exr_p4TLLzSkTM/viewform">Soy mayorista: registrar mi negocio</a></div>';
 }
-function openP(i){var p=P[i];if(window.mpTrack)mpTrack(rvId(p),"view");$("sheet").innerHTML='<button class="close" id="x" aria-label="Cerrar">✕</button><h2 class="name">'+p.n+'</h2><p class="city">'+IC.pin+' '+p.c+' · '+p.t+'</p><div class="big">'+big(p)+'</div>'+info(p)+ship(p)+'<p class="meta" style="margin:0 0 12px">Costo y condiciones: consultar al proveedor</p>'+ctaBtns(p)+'<a class="fix" target="_blank" rel="noopener" href="'+fixUrl(p)+'">Solicitar una corrección</a>';$("modal").classList.add("open");$("x").onclick=closeM}
+function openP(i){var p=P[i];if(window.mpTrack)mpTrack(rvId(p),"view");$("sheet").innerHTML='<button class="close" id="x" aria-label="Cerrar">✕</button><h2 class="name">'+p.n+'</h2><p class="city">'+IC.pin+' '+p.c+' · '+p.t+'</p><div class="big">'+big(p)+'</div>'+info(p)+ship(p)+'<p class="meta" style="margin:0 0 12px">Costo y condiciones: consultar al proveedor</p>'+ctaBtns(p);$("modal").classList.add("open");$("x").onclick=closeM}
 $("chips").onclick=function(e){var b=e.target.closest(".chip");if(b){cat=b.dataset.c;chips();render()}};
 $("list").onclick=function(e){var b=e.target.closest(".photos");if(b)openP(+b.dataset.i)};
 $("modal").onclick=function(e){if(e.target===$("modal"))$("modal").classList.remove("open")};
@@ -426,7 +426,7 @@ function rvId(p){return String(p.rk||p.w)}
 var AVATAR_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.6"/><path d="M4.8 20.2c.6-3.6 3.5-5.7 7.2-5.7s6.6 2.1 7.2 5.7"/></svg>';
 function rvAuthor(r){var n=rvEsc(r.authorName);if(!/^[A-Za-z0-9]{20,40}$/.test(r.authorUid||""))return '<b>'+n+'</b>';
   return '<button type="button" class="rv-au" data-u="'+r.authorUid+'" data-n="'+n+'" aria-label="Ver perfil público de '+n+'"><span class="av av-s" data-u="'+r.authorUid+'">'+AVATAR_SVG+'</span><b>'+n+'</b></button>'}
-var RV={cache:{},open:{},shown:{},form:{}},RV_STEP=2;
+var RV={cache:{},open:{},shown:{},form:{},unsub:{}},RV_STEP=2;
 var RV_STAR='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8l2.9 6 6.5.9-4.7 4.6 1.1 6.5L12 17.7l-5.8 3.1 1.1-6.5L2.6 9.7l6.5-.9z"/></svg>';
 function rvEsc(s){return String(s).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
 function rvStars(v){var w=Math.max(0,Math.min(5,v))/5*100,s=RV_STAR+RV_STAR+RV_STAR+RV_STAR+RV_STAR;return '<span class="stars" role="img" aria-label="'+v.toFixed(1)+' de 5 estrellas">'+s+'<span class="on" style="width:'+w+'%">'+s+'</span></span>'}
@@ -456,7 +456,16 @@ function rvBlock(p){var id=rvId(p),L=RV.cache[id],o=RV.open[id],f=RV.form[id]||{
       +(f.msg?'<div class="rv-msg'+(f.err?' err':'')+'" role="status">'+rvEsc(f.msg)+'</div>':'')+'</div>'}
   return h+'</div>'}
 function rvRefresh(id){var el=document.querySelector('.rv[data-rv-id="'+id+'"]');if(!el)return;var p=P.filter(function(x){return rvId(x)===id})[0];el.outerHTML=rvBlock(p)}
-function rvLoad(id){return ReviewsAPI.list(id).then(function(a){RV.cache[id]=a||[]},function(){RV.cache[id]=[]}).then(function(){rvRefresh(id)})}
+function rvSubscribe(id){
+  if(!RV.unsub)RV.unsub={};
+  if(RV.unsub[id]||!ReviewsAPI.adapter||typeof ReviewsAPI.adapter.subscribe!=="function")return;
+  try{RV.unsub[id]=ReviewsAPI.adapter.subscribe(id,function(a){RV.cache[id]=a||[];rvRefresh(id)},function(){RV.cache[id]=[];rvRefresh(id)})}
+  catch(e){RV.unsub[id]=null}
+}
+function rvLoad(id){
+  if(ReviewsAPI.adapter&&typeof ReviewsAPI.adapter.subscribe==="function"){rvSubscribe(id);return Promise.resolve()}
+  return ReviewsAPI.list(id).then(function(a){RV.cache[id]=a||[]},function(){RV.cache[id]=[]}).then(function(){rvRefresh(id)})
+}
 $("list").addEventListener("click",function(e){var b=e.target.closest("[data-rv]");if(!b)return;var box=b.closest(".rv");if(!box)return;var id=box.dataset.rvId,a=b.dataset.rv,f=RV.form[id]=RV.form[id]||{};
   if(a==="toggle"){RV.open[id]=!RV.open[id];if(RV.open[id])RV.shown[id]=RV_STEP}
   else if(a==="more")RV.shown[id]=(RV.shown[id]||RV_STEP)+RV_STEP;
@@ -580,13 +589,15 @@ function btn(){const b=$("acctBtn");if(!b)return;b.classList.toggle("in",!!S.use
 /* ---------- Opiniones: adaptador Firestore para la capa ReviewsAPI de la v6 ---------- */
 function installReviews(){
   if(/demo-resenas/.test(location.hash)||!window.ReviewsAPI)return;
+  const mapReview=function(d){const r=d.data();return{id:d.id,providerId:r.providerId,rating:r.rating,text:r.text,authorName:r.authorName,authorUid:r.authorUid,authorType:"registered",verifiedPurchase:false,status:"approved",createdAt:r.createdAt&&r.createdAt.toDate?r.createdAt.toDate().toISOString():new Date(0).toISOString()}};
+  const queryReviews=function(pid){return F.query(F.collection(db,"reviews"),F.where("providerId","==",pid),F.where("status","==","approved"))};
   const ad={name:"firestore",
-    list:async function(pid){
-      const q=F.query(F.collection(db,"reviews"),F.where("providerId","==",pid),F.where("status","==","approved"));
-      const s=await F.getDocs(q);return s.docs.map(function(d){const r=d.data();return{id:d.id,providerId:r.providerId,rating:r.rating,text:r.text,authorName:r.authorName,authorUid:r.authorUid,authorType:"registered",verifiedPurchase:false,status:"approved",createdAt:r.createdAt&&r.createdAt.toDate?r.createdAt.toDate().toISOString():new Date(0).toISOString()}})},
-    subscribe:function(pid,onData,onError){return F.onSnapshot(F.query(F.collection(db,"reviews"),F.where("providerId","==",pid),F.where("status","==","approved")),function(s){onData(s.docs.map(function(d){const r=d.data();return{id:d.id,providerId:r.providerId,rating:r.rating,text:r.text,authorName:r.authorName,authorUid:r.authorUid,authorType:"registered",verifiedPurchase:false,status:"approved",createdAt:r.createdAt&&r.createdAt.toDate?r.createdAt.toDate().toISOString():new Date(0).toISOString()}}))},function(e){if(onError)onError(e)})},
-    remove:async function(rid){await F.deleteDoc(F.doc(db,"reviews",rid))},
+    list:async function(pid){const q=queryReviews(pid);const s=await F.getDocs(q);return s.docs.map(mapReview)},
+    subscribe:function(pid,onData,onError){
+      return F.onSnapshot(queryReviews(pid),function(s){onData(s.docs.map(mapReview))},function(e){if(onError)onError(e)});
+    },
     currentUser:function(){return(S.user&&verified()&&S.profile&&S.profile.role==="buyer")?{name:S.profile.name,uid:S.user.uid}:null},
+    remove:async function(rid){await F.deleteDoc(F.doc(db,"reviews",rid))},
     add:async function(pid,d){
       const uid=S.user.uid;
       await F.setDoc(F.doc(db,"reviews",pid+"_"+uid),{providerId:pid,rating:d.rating,text:d.text,authorUid:uid,authorName:pubName(S.profile.name),authorType:"registered",verifiedPurchase:false,status:"approved",createdAt:F.serverTimestamp()});
@@ -730,9 +741,10 @@ function bizErr(e){return(e&&e.code==="permission-denied")?"Firebase rechazó el
 function inp(l,n,v,o){o=o||{};return'<label class="lb">'+l+'<input name="'+n+'"'+(o.max?' maxlength="'+o.max+'"':'')+(o.im?' inputmode="'+o.im+'"':'')+(o.nc?' autocapitalize="none" autocorrect="off" spellcheck="false"':'')+(o.ph?' placeholder="'+esc(o.ph)+'"':'')+' value="'+esc(v)+'"></label>'}
 function bizView(){
   const back='<div class="row"><button class="btn" data-a="go-home">Volver a mi cuenta</button></div>';
+  const support='<div class="row"><a class="btn wa" style="width:100%;text-align:center" target="_blank" rel="noopener" href="https://wa.me/595984675414?text=Hola%2C%20soy%20mayorista%20de%20Mayoristas%20Paraguay%20y%20necesito%20ayuda%20con%20mi%20negocio.">'+IC.wa+'Contactar al administrador por WhatsApp</a></div>';
   if(!S.user||!S.profile||S.profile.role!=="provider")return head("Mi negocio")+'<div class="msg err">Esta sección es solo para cuentas de Mayorista/Proveedor.</div>'+back;
-  if(!verified())return head("Mi negocio")+verifyH()+back;
-  return head("Mi negocio","Tu solicitud queda pendiente de aprobación del administrador. No se publica automáticamente.")+'<div id="bizBox"><p class="sub2">Cargando…</p></div>'+msgH()+back}
+  if(!verified())return head("Mi negocio")+support+verifyH()+back;
+  return head("Mi negocio","Editá los datos de tu negocio aquí. Los cambios se guardan al publicarlos.")+support+'<div id="bizBox"><p class="sub2">Cargando…</p></div>'+msgH()+back}
 function bizForm(v,mode,edit){
   const ck=function(n,l,x){return'<label class="ck"><input type="checkbox" name="'+n+'"'+(x?" checked":"")+'> '+l+'</label>'};
   const cs=cats().map(function(c){return'<label class="ck"><input type="checkbox" name="cat" value="'+esc(c)+'"'+((v.cat||[]).indexOf(c)>=0?" checked":"")+'> '+esc(c)+'</label>'}).join("");
@@ -1220,7 +1232,7 @@ async function crConfirm(){if(CR.busy||!CR.img)return;CR.busy=true;$("crOk").dis
   finally{CR.busy=false}}
 
 
-window.MP_VERSION="beta-v5+v9.1+v10.2-barra-perfil-recorte-exp";
+window.MP_VERSION="beta-v5+v9.1+v10.3-soporte-mayoristas";
 btn();
 const PPDL=(function(){try{const p=new URLSearchParams(location.search).get("perfil");return UIDRE.test(p||"")?p:null}catch(e){return null}})();
 init().then(function(){if(PPDL){try{history.replaceState(null,"",siteUrl())}catch(e){}ppOpen(PPDL,"")}});
