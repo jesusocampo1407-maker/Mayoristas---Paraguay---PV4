@@ -506,10 +506,10 @@ service cloud.firestore {
       allow get: if true;
       allow list: if false;
 
-      // Solo cuentas Emprendedor/Revendedor con correo verificado, y solo el propio perfil.
+      // Solo cuentas Emprendedor/Revendedor o Mayorista/Proveedor con correo verificado, y solo el propio perfil.
       allow create: if verified()
         && request.auth.uid == uid
-        && roleOf() == 'buyer'
+        && roleOf() in ['buyer', 'provider']
         && validPub(request.resource.data)
         && request.resource.data.joinedAt == profile().createdAt;
 
@@ -518,7 +518,7 @@ service cloud.firestore {
         (
           verified()
           && request.auth.uid == uid
-          && roleOf() == 'buyer'
+          && roleOf() in ['buyer', 'provider']
           && validPub(request.resource.data)
           && request.resource.data.joinedAt == resource.data.joinedAt
         )
