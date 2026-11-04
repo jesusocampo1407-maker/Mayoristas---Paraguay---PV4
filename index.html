@@ -442,7 +442,10 @@ function rvBlock(p){var id=rvId(p),L=RV.cache[id],o=RV.open[id],f=RV.form[id]||{
   h+='<div class="rv-acts"><button type="button" class="rv-b" data-rv="toggle" aria-expanded="'+(o?'true':'false')+'">'+(o?'Ocultar comentarios':'Ver comentarios')+'</button><button type="button" class="rv-b gold" data-rv="form">Dejar una opinión</button></div>';
   if(o){var sh=RV.shown[id]||RV_STEP;h+='<div class="rv-panel">';
     if(!n)h+='<p class="rv-empty">Sin reseñas todavía. ¡Sé el primero en opinar!</p>';
-    A.slice(0,sh).forEach(function(r){h+='<div class="rv-it"><div class="rv-h">'+rvStars(r.rating)+rvAuthor(r)+rvBadge(r)+'<small>'+new Date(r.createdAt).toLocaleDateString("es-PY")+'</small></div><p>'+rvEsc(r.text)+'</p></div>'});
+    A.slice(0,sh).forEach(function(r){
+      const canDelete=!!(S.admin||(S.user&&r.authorUid===S.user.uid));
+      h+='<div class="rv-it"><div class="rv-h">'+rvStars(r.rating)+rvAuthor(r)+rvBadge(r)+'<small>'+new Date(r.createdAt).toLocaleDateString("es-PY")+'</small></div><p>'+rvEsc(r.text)+'</p>'
+        +(canDelete?'<button type="button" class="rv-b" data-rv="delete" data-review-id="'+rvEsc(r.id)+'">Eliminar comentario</button>':"")+'</div>'});
     if(n>sh)h+='<button type="button" class="rv-b rv-more" data-rv="more">Ver más comentarios ('+(n-sh)+')</button>';
     h+='</div>'}
   if(f.open){h+='<div class="rv-form"><h3>Dejar una opinión</h3><div class="rv-pick" role="radiogroup" aria-label="Puntuación">';
@@ -469,6 +472,19 @@ $("list").addEventListener("click",function(e){var b=e.target.closest("[data-rv]
   else if(a==="form"){f.open=!f.open;f.msg=""}
   else if(a==="cancel"){f.open=false;f.msg=""}
   else if(a==="rate"){f.rating=+b.dataset.v;f.msg=""}
+  else if(a==="delete"){
+    const rid=b.dataset.reviewId,rec=(RV.cache[id]||[]).find(function(r){return r.id===rid});
+    if(!rec||!(S.admin||(S.user&&S.user.uid===rec.authorUid))){f.err=true;f.msg="No tenés permiso para eliminar este comentario.";rvRefresh(id);return}
+    if(!ReviewsAPI.adapter||typeof ReviewsAPI.adapter.remove!=="function"){f.err=true;f.msg="La eliminación todavía no está disponible.";rvRefresh(id);return}
+    if(!confirm("¿Eliminar tu comentario? Esta acción no se puede deshacer."))return;
+    b.disabled=true;
+    ReviewsAPI.adapter.remove(rid).then(function(){
+      RV.cache[id]=(RV.cache[id]||[]).filter(function(r){return r.id!==rid});rvRefresh(id);mpToast("Comentario eliminado.")
+    }).catch(function(e){
+      f.err=true;f.msg=e&&e.code==="permission-denied"?"Firebase todavía no permite este borrado. Hay que actualizar las reglas publicadas.":"No se pudo eliminar el comentario.";rvRefresh(id)
+    });
+    return;
+  }
   else if(a==="send"){var t=box.querySelector("[data-rv-text]");f.text=t?t.value.trim():"";
     if(!f.rating){f.err=true;f.msg="Elegí una puntuación de 1 a 5 estrellas."}
     else if(f.text.length<5){f.err=true;f.msg="Escribí un comentario de al menos 5 caracteres."}
@@ -581,6 +597,7 @@ function installReviews(){
       return F.onSnapshot(queryReviews(pid),function(s){onData(s.docs.map(mapReview))},function(e){if(onError)onError(e)});
     },
     currentUser:function(){return(S.user&&verified()&&S.profile&&S.profile.role==="buyer")?{name:S.profile.name,uid:S.user.uid}:null},
+    remove:async function(rid){await F.deleteDoc(F.doc(db,"reviews",rid))},
     add:async function(pid,d){
       const uid=S.user.uid;
       await F.setDoc(F.doc(db,"reviews",pid+"_"+uid),{providerId:pid,rating:d.rating,text:d.text,authorUid:uid,authorName:pubName(S.profile.name),authorType:"registered",verifiedPurchase:false,status:"pending",createdAt:F.serverTimestamp()});
