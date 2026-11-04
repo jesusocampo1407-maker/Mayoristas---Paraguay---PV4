@@ -489,7 +489,7 @@ $("list").addEventListener("click",function(e){var b=e.target.closest("[data-rv]
     if(!f.rating){f.err=true;f.msg="Elegí una puntuación de 1 a 5 estrellas."}
     else if(f.text.length<5){f.err=true;f.msg="Escribí un comentario de al menos 5 caracteres."}
     else if(!ReviewsAPI.currentUser()){f.err=true;f.msg=(ReviewsAPI.denyReason&&ReviewsAPI.denyReason())||"Tu opinión NO se guardó: todavía no hay inicio de sesión ni almacenamiento persistente. Esta función se activará en una etapa posterior."}
-    else{f.err=false;f.msg="Enviando…";rvRefresh(id);ReviewsAPI.add(id,{rating:f.rating,text:f.text}).then(function(r){RV.form[id]={open:true,msg:(r&&r.userMessage)||"Listo (modo demostración: solo en memoria, se pierde al recargar)."};return rvLoad(id)},function(){f.err=true;f.msg="No se pudo guardar la opinión.";rvRefresh(id)});return}}
+    else{f.err=false;f.msg="Enviando…";rvRefresh(id);ReviewsAPI.add(id,{rating:f.rating,text:f.text}).then(function(r){RV.form[id]={open:true,msg:(r&&r.userMessage)||"Listo (modo demostración: solo en memoria, se pierde al recargar)."};return rvLoad(id)},function(e){f.err=true;f.msg="No se pudo guardar: "+(e&&e.code?e.code:"error de Firebase")+". Revisá conexión y permisos de Firestore.";rvRefresh(id)});return}}
   rvRefresh(id)});
 $("list").addEventListener("input",function(e){var t=e.target.closest("[data-rv-text]");if(t){var id=t.closest(".rv").dataset.rvId;(RV.form[id]=RV.form[id]||{}).text=t.value}});
 (function(){var demo=/demo-resenas/.test(location.hash);ReviewsAPI.adapter=demo?rvDemoAdapter():RV_NOBACKEND;
@@ -600,6 +600,7 @@ function installReviews(){
     remove:async function(rid){await F.deleteDoc(F.doc(db,"reviews",rid))},
     add:async function(pid,d){
       const uid=S.user.uid;
+      try{await ppEnsure()}catch(profileError){console.warn("No se pudo preparar el perfil público del autor:",profileError)}
       await F.setDoc(F.doc(db,"reviews",pid+"_"+uid),{providerId:pid,rating:d.rating,text:d.text,authorUid:uid,authorName:pubName(S.profile.name),authorType:"registered",verifiedPurchase:false,status:"approved",createdAt:F.serverTimestamp()});
       return{userMessage:"¡Opinión publicada! Gracias por compartir tu experiencia."}}};
   ReviewsAPI.adapter=ad;
