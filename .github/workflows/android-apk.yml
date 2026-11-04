@@ -1,7 +1,7 @@
-# Mayoristas Paraguay · APK de depuración V10.3 (Capacitor 6)
+# Mayoristas Paraguay · APK de depuración V10.3.1 (Capacitor 6)
 # Este workflow vive en android-apk y construye SOLO desde android-apk.
 # No descarga ni modifica main, GitHub Pages o Firebase.
-name: Build Android APK (debug, V10.3)
+name: Build Android APK (debug, V10.3.1)
 
 on:
   push:
@@ -46,7 +46,7 @@ jobs:
           echo "SHA-256 index: $SHA"
           echo "Tamaño: $(wc -c < branch-src/index.html) bytes"
           [ -n "$VER" ] || { echo "::error::No se encontró window.MP_VERSION"; exit 1; }
-          echo "$VER" | grep -Eq "$EXPECTED_VERSION_REGEX" || { echo "::error::La versión '$VER' no coincide con V10.3"; exit 1; }
+          echo "$VER" | grep -Eq "$EXPECTED_VERSION_REGEX" || { echo "::error::La versión '$VER' no coincide con V10.3.1"; exit 1; }
           { echo "SOURCE_COMMIT=$GITHUB_SHA"; echo "MP_VERSION=$VER"; echo "INDEX_SHA256=$SHA"; } >> "$GITHUB_ENV"
 
       - name: Preparar la web desde android-apk (sin modificar el repositorio)
@@ -124,7 +124,7 @@ jobs:
           fi
           ls -l MayoristasParaguay-debug.apk
           {
-            echo "APK V10.3 de Mayoristas Paraguay (com.mayoristasparaguay.app), para instalar y probar."
+            echo "APK V10.3.1 de Mayoristas Paraguay (com.mayoristasparaguay.app), para instalar y probar."
             echo
             echo "- Versión empaquetada: $MP_VERSION"
             echo "- Rama fuente: android-apk"
@@ -143,9 +143,9 @@ jobs:
       - name: Publicar la APK en Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: apk-debug-v10.3-${{ github.run_number }}
+          tag_name: apk-debug-v10.3.1-${{ github.run_number }}
           target_commitish: ${{ github.sha }}
-          name: APK de depuración V10.3 #${{ github.run_number }}
+          name: APK de depuración V10.3.1 #${{ github.run_number }}
           body_path: release-notes.md
           prerelease: true
           files: MayoristasParaguay-debug.apk
