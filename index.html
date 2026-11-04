@@ -568,7 +568,7 @@ async function init(){
     try{const app=F.initializeApp(FIREBASE_CONFIG);await mpAppCheck(app);auth=F.getAuth(app);db=F.getFirestore(app)}
     catch(e){auth=null;db=null;const m=String(e&&(e.code||e.message)||e);return fail("Firebase se cargó pero no se pudo iniciar ("+m+"). Fuente: "+(S.sdk||"?")+". Tocá «Reintentar»; si se repite, recargá la página borrando la caché.")}
     S.ready=true;
-    try{installReviews()}catch(e){}loadPublished();
+    try{installReviews();P.forEach(function(p){rvLoad(rvId(p))})}catch(e){}loadPublished();
     F.onAuthStateChanged(auth,function(u){loadUser(u)});
     if($("acct").classList.contains("open"))paint();
   }finally{initing=false}
