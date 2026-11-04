@@ -332,18 +332,15 @@ service cloud.firestore {
     // ---------- OPINIONES ----------
     match /reviews/{rid} {
 
-      // Las opiniones aprobadas pueden leerlas compradores y mayoristas con correo verificado.
-      // La app consulta status == 'approved'; las pendientes/rechazadas solo las ve su autor o el administrador.
-      allow get, list: if (
-          resource.data.status == 'approved'
-          && verified()
-          && roleOf() in ['buyer', 'provider']
-        )
+      // Lectura pública: cualquier visitante puede leer opiniones aprobadas.
+      // Las pendientes/rechazadas solo las ve su autor o el administrador.
+      allow get, list: if resource.data.status == 'approved'
         || (signedIn() && resource.data.authorUid == request.auth.uid)
         || isAdmin();
 
       // Admite IDs numéricos existentes y UID alfanuméricos nuevos.
-      allow create: if verified()
+      // Para comentar basta con iniciar sesión como comprador; no se exige correo verificado.
+      allow create: if signedIn()
         && roleOf() == 'buyer'
 
         && request.resource.data.keys().hasOnly([
