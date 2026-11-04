@@ -598,7 +598,7 @@ function installReviews(){
     subscribe:function(pid,onData,onError){
       return F.onSnapshot(queryReviews(pid),function(s){onData(s.docs.map(mapReview))},function(e){if(onError)onError(e)});
     },
-    currentUser:function(){return(S.user&&verified()&&S.profile&&S.profile.role==="buyer")?{name:S.profile.name,uid:S.user.uid}:null},
+    currentUser:function(){return(S.user&&S.profile&&S.profile.role==="buyer")?{name:S.profile.name,uid:S.user.uid}:null},
     remove:async function(rid){await F.deleteDoc(F.doc(db,"reviews",rid))},
     add:async function(pid,d){
       const uid=S.user.uid;
@@ -607,10 +607,9 @@ function installReviews(){
       return{userMessage:"¡Opinión publicada! Gracias por compartir tu experiencia."}}};
   ReviewsAPI.adapter=ad;
   ReviewsAPI.capabilities.auth=true;ReviewsAPI.capabilities.persistence=true;ReviewsAPI.capabilities.moderation=true;
-  ReviewsAPI.note="Solo pueden opinar las cuentas de Emprendedor/Revendedor con correo verificado. Tu opinión se publica inmediatamente. Una opinión por proveedor. «Compra verificada» no se usa porque aún no hay forma fiable de confirmar compras.";
+  ReviewsAPI.note="Cualquier cuenta registrada de Emprendedor/Revendedor puede opinar; no hace falta verificar el correo. Tu opinión se publica inmediatamente y todos pueden leer las opiniones aprobadas. Una opinión por proveedor.";
   ReviewsAPI.denyReason=function(){
     if(!S.user)return"Para dejar una opinión, primero iniciá sesión con tu cuenta de Emprendedor/Revendedor (botón «Entrar» arriba). Tu opinión NO se guardó.";
-    if(!verified())return"Verificá tu correo para poder opinar. Tu opinión NO se guardó.";
     if(!S.profile||S.profile.role!=="buyer")return"Solo las cuentas de Emprendedor/Revendedor pueden dejar opiniones. Tu opinión NO se guardó."; return"No se pudo guardar tu opinión."};
   if(typeof P!=="undefined"&&typeof rvLoad==="function")P.forEach(function(p){rvLoad(rvId(p))});
 }
