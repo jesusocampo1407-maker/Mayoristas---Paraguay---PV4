@@ -332,8 +332,7 @@ service cloud.firestore {
     // ---------- OPINIONES ----------
     match /reviews/{rid} {
 
-      // Las aprobadas son públicas.
-      // Las pendientes y rechazadas solo las ven su autor y el administrador.
+      // Las opiniones publicadas son públicas. El administrador puede consultar todas.
       allow get, list: if resource.data.status == 'approved'
         || (signedIn() && resource.data.authorUid == request.auth.uid)
         || isAdmin();
@@ -368,7 +367,7 @@ service cloud.firestore {
 
         && request.resource.data.authorType == 'registered'
         && request.resource.data.verifiedPurchase == false
-        && request.resource.data.status == 'pending'
+        && request.resource.data.status == 'approved'
 
         && request.resource.data.rating is int
         && request.resource.data.rating >= 1
