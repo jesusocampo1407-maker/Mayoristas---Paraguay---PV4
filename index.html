@@ -600,11 +600,11 @@ function installReviews(){
     remove:async function(rid){await F.deleteDoc(F.doc(db,"reviews",rid))},
     add:async function(pid,d){
       const uid=S.user.uid;
-      await F.setDoc(F.doc(db,"reviews",pid+"_"+uid),{providerId:pid,rating:d.rating,text:d.text,authorUid:uid,authorName:pubName(S.profile.name),authorType:"registered",verifiedPurchase:false,status:"pending",createdAt:F.serverTimestamp()});
-      return{userMessage:"Opinión enviada. Se publicará cuando el administrador la apruebe."}}};
+      await F.setDoc(F.doc(db,"reviews",pid+"_"+uid),{providerId:pid,rating:d.rating,text:d.text,authorUid:uid,authorName:pubName(S.profile.name),authorType:"registered",verifiedPurchase:false,status:"approved",createdAt:F.serverTimestamp()});
+      return{userMessage:"¡Opinión publicada! Gracias por compartir tu experiencia."}}};
   ReviewsAPI.adapter=ad;
   ReviewsAPI.capabilities.auth=true;ReviewsAPI.capabilities.persistence=true;ReviewsAPI.capabilities.moderation=true;
-  ReviewsAPI.note="Solo pueden opinar las cuentas de Emprendedor/Revendedor con correo verificado. Tu opinión se publica después de ser revisada. Una opinión por proveedor. «Compra verificada» no se usa porque aún no hay forma fiable de confirmar compras.";
+  ReviewsAPI.note="Solo pueden opinar las cuentas de Emprendedor/Revendedor con correo verificado. Tu opinión se publica inmediatamente. Una opinión por proveedor. «Compra verificada» no se usa porque aún no hay forma fiable de confirmar compras.";
   ReviewsAPI.denyReason=function(){
     if(!S.user)return"Para dejar una opinión, primero iniciá sesión con tu cuenta de Emprendedor/Revendedor (botón «Entrar» arriba). Tu opinión NO se guardó.";
     if(!verified())return"Verificá tu correo para poder opinar. Tu opinión NO se guardó.";
@@ -843,7 +843,7 @@ async function doBizChg(f,b){
 function adminView(){
   if(!S.admin)return head("Administración")+'<div class="msg err">Acceso restringido al administrador.</div><div class="row"><button class="btn" data-a="go-home">Volver</button></div>';
   return head("Administración","Negocios publicados, ocultos y pendientes.")+'<div id="admBox"><p class="sub2">Cargando…</p></div>'+msgH()+'<div class="row"><button class="btn" data-a="go-home">Volver a mi cuenta</button></div>'}
-const ADM=[["businessRequests","Negocios"],["reviews","Opiniones"],["changeRequests","Cambios solicitados"]];
+const ADM=[["businessRequests","Negocios"],["changeRequests","Cambios solicitados"]];
 const CHL={whatsapp:"WhatsApp",products:"Descripción",instagram:"Instagram",website:"Sitio web"};
 async function loadAdmin(){
   let h="";
@@ -859,7 +859,25 @@ async function loadAdmin(){
             Object.keys(x.changes).forEach(function(k){t+='<p><b>'+esc(CHL[k]||k)+':</b> '+esc(cur[k]||"—")+' → <b>'+esc(x.changes[k]||"(vacío)")+'</b></p>'})}}
         h+='<div class="adm">'+t+'<div class="row"><button class="btn gold" data-a="'+(apply?"applych":"mod")+'" data-c="'+c[0]+'" data-id="'+esc(d.id)+'" data-s="approved">'+okLbl+'</button><button class="btn" data-a="mod" data-c="'+c[0]+'" data-id="'+esc(d.id)+'" data-s="rejected">Rechazar</button></div></div>'}}
     catch(e){h+='<div class="msg err">'+c[1]+': '+esc(errTxt(e))+'</div>'}}
-  h+=await admPub();if($("admBox"))$("admBox").innerHTML=h}
+  try{
+    const rs=await F.getDocs(F.collection(db,"reviews"));
+    const providerName=function(pid){const p=P.find(function(z){return rvId(z)===pid||z.rk===pid||z.w===pid});return p?(p.n||p.name||p.w):pid};
+    window.__adminReviews=rs.docs.map(function(d){const r=d.data();return{id:d.id,providerId:r.providerId,providerName:providerName(r.providerId),authorName:r.authorName||"Usuario",authorUid:r.authorUid||"",text:r.text||"",rating:r.rating||0,createdAt:r.createdAt&&r.createdAt.toDate?r.createdAt.toDate().toLocaleString("es-PY"):"—"}});
+    h+='<h3 style="margin:18px 0 6px;font-size:15px">Todas las opiniones ('+rs.size+')</h3><div class="adm"><label class="lb">Filtrar por mayorista/proveedor<input id="admReviewProvider" type="search" placeholder="Nombre del proveedor"></label><label class="lb">Filtrar por autor<input id="admReviewAuthor" type="search" placeholder="Nombre del usuario"></label><div id="admReviewList"></div></div>';
+  }catch(e){h+='<div class="msg err">Opiniones: '+esc(errTxt(e))+'</div>'}
+  h+=await admPub();if($("admBox")){$("admBox").innerHTML=h;renderAdminReviews()}}
+function renderAdminReviews(){
+ const box=$("admReviewList");if(!box)return;
+ const pv=(($("admReviewProvider")||{}).value||"").trim().toLowerCase();
+ const au=(($("admReviewAuthor")||{}).value||"").trim().toLowerCase();
+ const rows=(window.__adminReviews||[]).filter(function(r){return r.providerName.toLowerCase().includes(pv)&&r.authorName.toLowerCase().includes(au)});
+ box.innerHTML=rows.length?rows.map(function(r){return '<div class="adm" style="margin-top:8px"><p><b>'+esc(r.providerName)+'</b> · '+esc(r.rating)+'★</p><p>Autor: '+esc(r.authorName)+' · '+esc(r.createdAt)+'</p><p style="white-space:pre-wrap">'+esc(r.text)+'</p><button class="btn" data-a="deleteReview" data-id="'+esc(r.id)+'">Eliminar opinión</button></div>'}).join(""):'<p class="sub2">No hay opiniones que coincidan con esos filtros.</p>';
+}
+async function deleteAdminReview(b){
+ if(!S.admin)return;
+ if(!confirm("¿Eliminar definitivamente esta opinión?"))return;
+ await busy(b,async function(){try{await F.deleteDoc(F.doc(db,"reviews",b.dataset.id));await loadAdmin()}catch(e){setMsg("No se pudo eliminar: "+errTxt(e),"err")}});
+}
 async function doMod(b){
   if(b.dataset.c==="businessRequests"&&b.dataset.s==="approved")return doPublish(b);
   await busy(b,async function(){try{await F.updateDoc(F.doc(db,b.dataset.c,b.dataset.id),{status:b.dataset.s,reviewedBy:S.user.uid,reviewedAt:F.serverTimestamp()});await loadAdmin()}catch(e){setMsg(errTxt(e),"err")}})}
@@ -1004,7 +1022,8 @@ $("acct").addEventListener("click",function(e){
   else if(a==="retry"){S.loadErr="";paint();init()}
   else if(a==="resend")doResend(b);
   else if(a==="refresh")doRefresh(b);
-  else if(a==="mod")doMod(b);else if(a==="applych")doApply(b);else if(a==="pub")doPublish(b);else if(a==="vis")doVis(b);else if(a==="admedit")admEdit(b)});
+  else if(a==="deleteReview")deleteAdminReview(b);  else if(a==="mod")doMod(b);else if(a==="applych")doApply(b);else if(a==="pub")doPublish(b);else if(a==="vis")doVis(b);else if(a==="admedit")admEdit(b)});
+$("acct").addEventListener("input",function(e){if(e.target&&(/^admReview/.test(e.target.id||"")))renderAdminReviews()});
 $("acct").addEventListener("submit",function(e){
   e.preventDefault();const f=e.target.closest("form[data-f]");if(!f)return;const b=f.querySelector('button[type="submit"]'),k=f.dataset.f;
   ({login:doLogin,register:doRegister,reset:doReset,complete:doComplete,biz:doBiz,bizchg:doBizChg,admedit:doAdmEdit})[k](f,b)});
