@@ -592,7 +592,7 @@ function installReviews(){
   if(/demo-resenas/.test(location.hash)||!window.ReviewsAPI)return;
   const mapReview=function(d){const r=d.data();return{id:d.id,providerId:r.providerId,rating:r.rating,text:r.text,authorName:r.authorName,authorUid:r.authorUid,authorType:r.authorType||"registered",verifiedPurchase:r.verifiedPurchase===true,status:r.status||"approved",createdAt:r.createdAt&&r.createdAt.toDate?r.createdAt.toDate().toISOString():new Date(0).toISOString()}};
   /* Consultar solo por proveedor evita el índice compuesto providerId+status que puede bloquear la lectura pública. */
-  const queryReviews=function(pid){return F.query(F.collection(db,"reviews"),F.where("providerId","==",pid))};
+  const queryReviews=function(pid){return F.query(F.collection(db,"reviews"),F.where("providerId","==",pid),F.where("status","==","approved"))};
   const ad={name:"firestore",
     list:async function(pid){const q=queryReviews(pid);const s=await F.getDocs(q);return s.docs.map(mapReview)},
     subscribe:function(pid,onData,onError){
@@ -633,7 +633,7 @@ function paint(){
   else if(V==="register")h+=head("Crear cuenta","Emprendedores/revendedores y mayoristas/proveedores.")+'<form data-f="register" novalidate>'+field("Nombre y apellido","name","text",{ac:"name",max:80})+field("Correo electrónico","email","email",{ac:"email"})+field("Contraseña (mínimo 8, con letras y números)","pw","password",{ac:"new-password",pw:1})+field("Confirmar contraseña","pw2","password",{ac:"new-password",pw:1})+showpw()+'<label class="lb">Tipo de cuenta<select name="role"><option value="buyer">Emprendedor/Revendedor</option><option value="provider'+(S.presetRole==="provider"?'" selected':'"')+'>Mayorista/Proveedor</option></select></label><p class="sub2" style="margin-top:8px">Si elegís Mayorista/Proveedor, tu negocio se publica automáticamente en el catálogo cuando verificás tu correo y completás el formulario con datos válidos.</p><div class="row"><button class="btn gold" type="submit">Crear cuenta</button></div><div class="row" style="margin-top:4px"><button type="button" class="lnk" data-a="go-login">Ya tengo cuenta</button></div></form>'+msgH();
   else if(V==="reset")h+=head("Recuperar contraseña","Te enviaremos un enlace al correo.")+'<form data-f="reset" novalidate>'+field("Correo electrónico","email","email",{ac:"email"})+'<div class="row"><button class="btn gold" type="submit">Enviar enlace</button></div><div class="row" style="margin-top:4px"><button type="button" class="lnk" data-a="go-login">Volver a iniciar sesión</button></div></form>'+msgH();
   else if(V==="complete"&&S.user)h+=head("Completar perfil","No pudimos leer tu perfil. Elegí tu tipo de cuenta para continuar.")+'<form data-f="complete" novalidate>'+field("Nombre y apellido","name","text",{v:S.user.displayName||"",max:80})+'<label class="lb">Tipo de cuenta<select name="role"><option value="buyer">Emprendedor/Revendedor</option><option value="provider">Mayorista/Proveedor</option></select></label><div class="row"><button class="btn gold" type="submit">Guardar</button><button class="btn" type="button" data-a="logout">Cerrar sesión</button></div></form>'+msgH();
-  else if(V==="home"&&S.user)h+=head("Mi cuenta")+'<p style="margin:6px 0"><b>'+esc(S.profile&&S.profile.name)+'</b><br><span class="sub2">'+esc(S.user.email)+'</span></p><p style="margin:6px 0"><span class="st">'+esc(ROLE[S.profile&&S.profile.role]||"")+'</span> <span class="st'+(verified()?' ok':'')+'">'+(verified()?"Correo verificado":"Correo sin verificar")+'</span>'+(S.admin?' <span class="st ok">Administrador</span>':"")+'</p>'+(verified()?"":verifyH())+(S.profile&&S.profile.role!=="provider"?acctOpts():"")+'<div class="row">'+(S.profile&&S.profile.role==="provider"?'<button class="btn gold" data-a="go-biz">Mi negocio</button>':"")+(S.admin?'<button class="btn" data-a="go-admin">Panel de administración</button>':"")+'<button class="btn" data-a="logout">Cerrar sesión</button></div>'+msgH();
+  else if(V==="home"&&S.user)h+=head("Mi cuenta")+'<p style="margin:6px 0"><b>'+esc(S.profile&&S.profile.name)+'</b><br><span class="sub2">'+esc(S.user.email)+'</span></p><p style="margin:6px 0"><span class="st">'+esc(ROLE[S.profile&&S.profile.role]||"")+'</span> <span class="st'+(verified()?' ok':'')+'">'+(verified()?"Correo verificado":"Correo sin verificar")+'</span>'+(S.admin?' <span class="st ok">Administrador</span>':"")+'</p>'+(verified()?"":verifyH())+(S.profile&&S.profile.role!=="provider"?acctOpts():(verified()?'<div class="opts"><button class="opt" type="button" data-a="go-mypub"><span class="oi">👤</span><span class="ot"><b>Mi perfil público</b><small>Tu foto y tu nombre</small></span><span class="oc">›</span></button></div>':""))+'<div class="row">'+(S.profile&&S.profile.role==="provider"?'<button class="btn gold" data-a="go-biz">Mi negocio</button>':"")+(S.admin?'<button class="btn" data-a="go-admin">Panel de administración</button>':"")+'<button class="btn" data-a="logout">Cerrar sesión</button></div>'+msgH();
   else if(V==="verify"&&S.user)h+=head("Verificá tu correo")+verifyH()+'<div class="row"><button class="btn" data-a="go-home">Ir a mi cuenta</button></div>'+msgH();
   else if(V==="biz")h+=bizView();
   else if(V==="needprovider")h+=head("Registrar un negocio")+'<div class="msg">Tu cuenta es de <b>Emprendedor/Revendedor</b>. Para registrar un negocio hace falta una cuenta de <b>Mayorista/Proveedor</b>, y el tipo de cuenta no se puede cambiar. Cerrá sesión y creá otra cuenta (con otro correo) eligiendo «Mayorista/Proveedor».</div><div class="row"><button class="btn" data-a="go-home">Volver</button></div>';
@@ -865,7 +865,9 @@ async function loadAdmin(){
   try{
     const rs=await F.getDocs(F.collection(db,"reviews"));
     const providerName=function(pid){const p=P.find(function(z){return rvId(z)===pid||z.rk===pid||z.w===pid});return p?(p.n||p.name||p.w):pid};
-    window.__adminReviews=rs.docs.map(function(d){const r=d.data();return{id:d.id,providerId:r.providerId,providerName:providerName(r.providerId),authorName:r.authorName||"Usuario",authorUid:r.authorUid||"",text:r.text||"",rating:r.rating||0,createdAt:r.createdAt&&r.createdAt.toDate?r.createdAt.toDate().toLocaleString("es-PY"):"—"}});
+    window.__adminReviews=rs.docs.map(function(d){const r=d.data();return{id:d.id,providerId:r.providerId,providerName:providerName(r.providerId),authorName:r.authorName||"Usuario",authorUid:r.authorUid||"",text:r.text||"",rating:r.rating||0,status:r.status||"pending",createdAt:r.createdAt&&r.createdAt.toDate?r.createdAt.toDate().toLocaleString("es-PY"):"—"}});
+    const oldPending=rs.docs.filter(function(d){const st=d.data().status;return !st||st==="pending"}).length;
+    if(oldPending)h+='<div class="warn">Hay '+oldPending+' opiniones antiguas pendientes o sin estado. Podés publicarlas de una vez para que todos las vean.</div><div class="row"><button class="btn gold" type="button" data-a="publishOldReviews">Publicar opiniones antiguas</button></div>';
     h+='<h3 style="margin:18px 0 6px;font-size:15px">Todas las opiniones ('+rs.size+')</h3><div class="adm"><label class="lb">Filtrar por mayorista/proveedor<input id="admReviewProvider" type="search" placeholder="Nombre del proveedor"></label><label class="lb">Filtrar por autor<input id="admReviewAuthor" type="search" placeholder="Nombre del usuario"></label><div id="admReviewList"></div></div>';
   }catch(e){h+='<div class="msg err">Opiniones: '+esc(errTxt(e))+'</div>'}
   h+=await admPub();if($("admBox")){$("admBox").innerHTML=h;renderAdminReviews()}}
@@ -880,6 +882,17 @@ async function deleteAdminReview(b){
  if(!S.admin)return;
  if(!confirm("¿Eliminar definitivamente esta opinión?"))return;
  await busy(b,async function(){try{await F.deleteDoc(F.doc(db,"reviews",b.dataset.id));await loadAdmin()}catch(e){setMsg("No se pudo eliminar: "+errTxt(e),"err")}});
+}
+async function publishOldReviews(b){
+  if(!S.admin)return;
+  if(!confirm("Se publicarán las opiniones antiguas que estén pendientes o no tengan estado. Las rechazadas y las ya publicadas no se modificarán. ¿Continuar?"))return;
+  await busy(b,async function(){try{
+    const snap=await F.getDocs(F.collection(db,"reviews"));
+    const pending=snap.docs.filter(function(d){const st=d.data().status;return !st||st==="pending"});
+    if(!pending.length){await loadAdmin();mpToast("No hay opiniones antiguas pendientes.");return}
+    for(let i=0;i<pending.length;i+=450){const batch=F.writeBatch(db);pending.slice(i,i+450).forEach(function(d){batch.update(d.ref,{status:"approved",reviewedBy:S.user.uid,reviewedAt:F.serverTimestamp()})});await batch.commit()}
+    await loadAdmin();mpToast(pending.length+" opiniones publicadas para todos.");
+  }catch(e){setMsg("No se pudieron publicar las opiniones antiguas: "+errTxt(e),"err")}})
 }
 async function doMod(b){
   if(b.dataset.c==="businessRequests"&&b.dataset.s==="approved")return doPublish(b);
@@ -1025,7 +1038,7 @@ $("acct").addEventListener("click",function(e){
   else if(a==="retry"){S.loadErr="";paint();init()}
   else if(a==="resend")doResend(b);
   else if(a==="refresh")doRefresh(b);
-  else if(a==="deleteReview")deleteAdminReview(b);  else if(a==="mod")doMod(b);else if(a==="applych")doApply(b);else if(a==="pub")doPublish(b);else if(a==="vis")doVis(b);else if(a==="admedit")admEdit(b)});
+  else if(a==="deleteReview")deleteAdminReview(b);else if(a==="publishOldReviews")publishOldReviews(b);else if(a==="mod")doMod(b);else if(a==="applych")doApply(b);else if(a==="pub")doPublish(b);else if(a==="vis")doVis(b);else if(a==="admedit")admEdit(b)});
 $("acct").addEventListener("input",function(e){if(e.target&&(/^admReview/.test(e.target.id||"")))renderAdminReviews()});
 $("acct").addEventListener("submit",function(e){
   e.preventDefault();const f=e.target.closest("form[data-f]");if(!f)return;const b=f.querySelector('button[type="submit"]'),k=f.dataset.f;
@@ -1130,7 +1143,7 @@ async function ppRender(uid,fb){
 async function ppAdminRemovePhoto(b){if(!S.admin||!PPU)return;b.disabled=true;try{const cur=await F.getDoc(F.doc(db,"publicProfiles",PPU));if(cur.exists())await F.setDoc(F.doc(db,"publicProfiles",PPU),Object.assign({},cur.data(),{photo:"",updatedAt:F.serverTimestamp()}));delete PPC[PPU];mpToast("Foto quitada.");ppRender(PPU,"")}catch(e){b.disabled=false;mpToast("No se pudo quitar la foto.")}}
 /* tu propio perfil público: se crea la primera vez que un Emprendedor/Revendedor con correo verificado inicia sesión (nombre = el mismo que ya ven en tus opiniones) */
 function ppMyName(){return pubName(S.profile&&S.profile.name).slice(0,40)}
-async function ppEnsure(){const u=S.user;if(!u||!db||!S.profile||S.profile.role!=="buyer"||!u.emailVerified)return null;
+async function ppEnsure(){const u=S.user;if(!u||!db||!S.profile||["buyer","provider"].indexOf(S.profile.role)<0||!u.emailVerified)return null;
   const cur=await F.getDoc(F.doc(db,"publicProfiles",u.uid));if(cur.exists())return cur.data();
   const ud=await F.getDoc(F.doc(db,"users",u.uid)),ca=ud.exists()?ud.data().createdAt:null;if(!ca)return null;
   const data={name:ppMyName(),photo:"",favoritesPublic:false,joinedAt:ca,updatedAt:F.serverTimestamp()};
@@ -1140,10 +1153,10 @@ async function ppSave(patch){const u=S.user,cur=await ppEnsure();if(!cur)throw n
   Object.keys(patch).forEach(function(k){nd[k]=patch[k]});
   await F.setDoc(F.doc(db,"publicProfiles",u.uid),nd);delete PPC[u.uid];return nd}
 let PPSYNC=null;
-const _btn2=btn;btn=function(){_btn2.apply(this,arguments);try{const u=S.user&&S.user.uid;if(u&&u!==PPSYNC&&S.profile&&S.profile.role==="buyer"&&S.user.emailVerified&&db){PPSYNC=u;ppEnsure().catch(function(){PPSYNC=null})}}catch(e){}};
+const _btn2=btn;btn=function(){_btn2.apply(this,arguments);try{const u=S.user&&S.user.uid;if(u&&u!==PPSYNC&&S.profile&&["buyer","provider"].indexOf(S.profile.role)>=0&&S.user.emailVerified&&db){PPSYNC=u;ppEnsure().catch(function(){PPSYNC=null})}}catch(e){}};
 /* «Mi cuenta» conserva todas sus opciones; solo se AGREGA «Mi perfil público» */
 const _ao=acctOpts;acctOpts=function(){return _ao().replace(/<\/div>$/,'<button class="opt" type="button" data-a="go-mypub"><span class="oi">👤</span><span class="ot"><b>Mi perfil público</b><small>Tu foto, tu nombre y tus favoritos</small></span><span class="oc">›</span></button></div>')};
-const _paint=paint;paint=function(){if(S.view==="mypub"&&S.user&&S.profile&&S.profile.role==="buyer"){$("acctSheet").innerHTML=mypubView();mypubLoad();return}_paint.apply(this,arguments)};
+const _paint=paint;paint=function(){if(S.view==="mypub"&&S.user&&S.profile&&["buyer","provider"].indexOf(S.profile.role)>=0){$("acctSheet").innerHTML=mypubView();mypubLoad();return}_paint.apply(this,arguments)};
 function mypubView(){return head("Mi perfil público","Esto es lo que ven los demás. Nunca se muestran tu correo, tu contraseña ni datos privados.")+'<div id="mypubBox"><p class="sub2">Cargando…</p></div><div class="row"><button class="btn" data-a="go-home">Volver a mi cuenta</button></div>'}
 async function mypubLoad(){const box=$("mypubBox");if(!box)return;let cur=null;try{cur=await ppEnsure()}catch(e){}
   if(!$("mypubBox"))return;if(!cur){$("mypubBox").innerHTML='<div class="msg err">No pudimos preparar tu perfil público. Verificá tu correo e intentá de nuevo más tarde.</div>';return}
@@ -1180,10 +1193,10 @@ async function goMyProfile(){
   closeM();
   if(!S.user){open("login");S.msg={t:"Para ver tu perfil público, iniciá sesión o creá tu cuenta.",k:""};paint();return}
   if(!S.profile){open();return}
-  if(S.profile.role!=="buyer"){open();mpToast("Los perfiles públicos son para cuentas de Emprendedor/Revendedor.");return}
+  if(["buyer","provider"].indexOf(S.profile.role)<0){open();mpToast("Esta cuenta no permite un perfil público.");return}
   if(!S.user.emailVerified){open();mpToast("Verificá tu correo para activar tu perfil público.");return}
   try{await ppEnsure();delete PPC[S.user.uid]}catch(e){}
-  ppOpen(S.user.uid,ppMyName())}
+  open("mypub")}
 window.goMyProfile=goMyProfile;window.MPCrop={state:null}; /* la barra inferior vive en el script clásico; esta función, en el módulo */
 const CR={w:0,h:0,D:0,s0:1,z:1,x:0,y:0,ptr:new Map(),d0:0,z0:1,img:null,url:null,busy:false};window.MPCrop.state=CR;
 function crIsOpen(){const m=$("cropm");return !!m&&m.classList.contains("open")}
@@ -1235,7 +1248,7 @@ async function crConfirm(){if(CR.busy||!CR.img)return;CR.busy=true;$("crOk").dis
   finally{CR.busy=false}}
 
 
-window.MP_VERSION="beta-v5+v9.1+v10.3-soporte-mayoristas";
+window.MP_VERSION="beta-v5+v9.1+v10.3.1-perfiles-opiniones";
 btn();
 const PPDL=(function(){try{const p=new URLSearchParams(location.search).get("perfil");return UIDRE.test(p||"")?p:null}catch(e){return null}})();
 init().then(function(){if(PPDL){try{history.replaceState(null,"",siteUrl())}catch(e){}ppOpen(PPDL,"")}});
