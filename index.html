@@ -426,7 +426,7 @@ function rvId(p){return String(p.rk||p.w)}
 var AVATAR_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.6"/><path d="M4.8 20.2c.6-3.6 3.5-5.7 7.2-5.7s6.6 2.1 7.2 5.7"/></svg>';
 function rvAuthor(r){var n=rvEsc(r.authorName);if(!/^[A-Za-z0-9]{20,40}$/.test(r.authorUid||""))return '<b>'+n+'</b>';
   return '<button type="button" class="rv-au" data-u="'+r.authorUid+'" data-n="'+n+'" aria-label="Ver perfil público de '+n+'"><span class="av av-s" data-u="'+r.authorUid+'">'+AVATAR_SVG+'</span><b>'+n+'</b></button>'}
-var RV={cache:{},open:{},shown:{},form:{},unsub:{},errors:{}},RV_STEP=2;
+var RV={cache:{},open:{},shown:{},form:{},unsub:{},errors:{}},RV_STEP=5;
 var RV_STAR='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8l2.9 6 6.5.9-4.7 4.6 1.1 6.5L12 17.7l-5.8 3.1 1.1-6.5L2.6 9.7l6.5-.9z"/></svg>';
 function rvEsc(s){return String(s).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
 function rvStars(v){var w=Math.max(0,Math.min(5,v))/5*100,s=RV_STAR+RV_STAR+RV_STAR+RV_STAR+RV_STAR;return '<span class="stars" role="img" aria-label="'+v.toFixed(1)+' de 5 estrellas">'+s+'<span class="on" style="width:'+w+'%">'+s+'</span></span>'}
@@ -444,7 +444,7 @@ function rvBlock(p){var id=rvId(p),L=RV.cache[id],o=RV.open[id],f=RV.form[id]||{
   if(o){var sh=RV.shown[id]||RV_STEP;h+='<div class="rv-panel">';
     if(!n)h+='<p class="rv-empty">Sin reseñas todavía. ¡Sé el primero en opinar!</p>';
     A.slice(0,sh).forEach(function(r){
-      const canDelete=!!(S.admin||(S.user&&r.authorUid===S.user.uid));
+      const MS=window.MPS||{},canDelete=!!(MS.admin||(MS.user&&r.authorUid===MS.user.uid));
       h+='<div class="rv-it"><div class="rv-h">'+rvStars(r.rating)+rvAuthor(r)+rvBadge(r)+'<small>'+new Date(r.createdAt).toLocaleDateString("es-PY")+'</small></div><p>'+rvEsc(r.text)+'</p>'
         +(canDelete?'<button type="button" class="rv-b" data-rv="delete" data-review-id="'+rvEsc(r.id)+'">Eliminar comentario</button>':"")+'</div>'});
     if(n>sh)h+='<button type="button" class="rv-b rv-more" data-rv="more">Ver más comentarios ('+(n-sh)+')</button>';
@@ -475,7 +475,7 @@ $("list").addEventListener("click",function(e){var b=e.target.closest("[data-rv]
   else if(a==="rate"){f.rating=+b.dataset.v;f.msg=""}
   else if(a==="delete"){
     const rid=b.dataset.reviewId,rec=(RV.cache[id]||[]).find(function(r){return r.id===rid});
-    if(!rec||!(S.admin||(S.user&&S.user.uid===rec.authorUid))){f.err=true;f.msg="No tenés permiso para eliminar este comentario.";rvRefresh(id);return}
+    var MS=window.MPS||{};if(!rec||!(MS.admin||(MS.user&&MS.user.uid===rec.authorUid))){f.err=true;f.msg="No tenés permiso para eliminar este comentario.";rvRefresh(id);return}
     if(!ReviewsAPI.adapter||typeof ReviewsAPI.adapter.remove!=="function"){f.err=true;f.msg="La eliminación todavía no está disponible.";rvRefresh(id);return}
     if(!confirm("¿Eliminar tu comentario? Esta acción no se puede deshacer."))return;
     b.disabled=true;
@@ -519,7 +519,7 @@ const APPCHECK_SITE_KEY="";
 async function mpAppCheck(app){if(!APPCHECK_SITE_KEY)return;try{const AC=await import(SDK+"firebase-app-check.js");AC.initializeAppCheck(app,{provider:new AC.ReCaptchaV3Provider(APPCHECK_SITE_KEY),isTokenAutoRefreshEnabled:true})}catch(e){}}
 const $=function(i){return document.getElementById(i)};
 const esc=function(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})};
-const S={cfg:CFG,ready:false,loadErr:"",user:null,profile:null,admin:false,view:"login",registering:false,msg:null,notice:""};
+const S={cfg:CFG,ready:false,loadErr:"",user:null,profile:null,admin:false,view:"login",registering:false,msg:null,notice:""};window.MPS=S;
 let F=null,auth=null,db=null;
 const ROLE={buyer:"Emprendedor/Revendedor",provider:"Mayorista/Proveedor"};
 const AERR={"auth/email-already-in-use":"Ese correo ya tiene una cuenta. Probá iniciar sesión.","auth/invalid-email":"El correo no tiene un formato válido.","auth/weak-password":"La contraseña es muy débil.","auth/user-not-found":"Correo o contraseña incorrectos.","auth/wrong-password":"Correo o contraseña incorrectos.","auth/invalid-credential":"Correo o contraseña incorrectos.","auth/too-many-requests":"Demasiados intentos. Esperá unos minutos y volvé a probar.","auth/network-request-failed":"No hay conexión con el servidor. Revisá tu internet.","auth/user-disabled":"Esta cuenta fue deshabilitada.","auth/operation-not-allowed":"El acceso con correo y contraseña no está habilitado en Firebase."};
@@ -867,15 +867,13 @@ async function loadAdmin(){
     window.__adminReviews=rs.docs.map(function(d){const r=d.data();return{id:d.id,providerId:r.providerId,providerName:providerName(r.providerId),authorName:r.authorName||"Usuario",authorUid:r.authorUid||"",text:r.text||"",rating:r.rating||0,status:r.status||"pending",createdAt:r.createdAt&&r.createdAt.toDate?r.createdAt.toDate().toLocaleString("es-PY"):"—"}});
     const oldPending=rs.docs.filter(function(d){const st=d.data().status;return !st||st==="pending"}).length;
     if(oldPending)h+='<div class="warn">Hay '+oldPending+' opiniones antiguas pendientes o sin estado. Podés publicarlas de una vez para que todos las vean.</div><div class="row"><button class="btn gold" type="button" data-a="publishOldReviews">Publicar opiniones antiguas</button></div>';
-    h+='<h3 style="margin:18px 0 6px;font-size:15px">Todas las opiniones ('+rs.size+')</h3><div class="adm"><label class="lb">Filtrar por mayorista/proveedor<input id="admReviewProvider" type="search" placeholder="Nombre del proveedor"></label><label class="lb">Filtrar por autor<input id="admReviewAuthor" type="search" placeholder="Nombre del usuario"></label><div id="admReviewList"></div></div>';
+    h+='<h3 style="margin:18px 0 6px;font-size:15px">Todas las opiniones ('+rs.size+')</h3><div class="adm"><div id="admReviewList"></div></div>';
   }catch(e){h+='<div class="msg err">Opiniones: '+esc(errTxt(e))+'</div>'}
   h+=await admPub();if($("admBox")){$("admBox").innerHTML=h;renderAdminReviews()}}
 function renderAdminReviews(){
  const box=$("admReviewList");if(!box)return;
- const pv=(($("admReviewProvider")||{}).value||"").trim().toLowerCase();
- const au=(($("admReviewAuthor")||{}).value||"").trim().toLowerCase();
- const rows=(window.__adminReviews||[]).filter(function(r){return r.providerName.toLowerCase().includes(pv)&&r.authorName.toLowerCase().includes(au)});
- box.innerHTML=rows.length?rows.map(function(r){return '<div class="adm" style="margin-top:8px"><p><b>'+esc(r.providerName)+'</b> · '+esc(r.rating)+'★</p><p>Autor: '+esc(r.authorName)+' · '+esc(r.createdAt)+'</p><p style="white-space:pre-wrap">'+esc(r.text)+'</p><button class="btn" data-a="deleteReview" data-id="'+esc(r.id)+'">Eliminar opinión</button></div>'}).join(""):'<p class="sub2">No hay opiniones que coincidan con esos filtros.</p>';
+ const rows=window.__adminReviews||[];
+ box.innerHTML=rows.length?rows.map(function(r){return '<div class="adm" style="margin-top:8px"><p><b>'+esc(r.providerName)+'</b> · '+esc(r.rating)+'★</p><p>Autor: '+esc(r.authorName)+' · '+esc(r.createdAt)+'</p><p style="white-space:pre-wrap">'+esc(r.text)+'</p><button class="btn" data-a="deleteReview" data-id="'+esc(r.id)+'">Eliminar opinión</button></div>'}).join(""):'<p class="sub2">Todavía no hay opiniones.</p>';
 }
 async function deleteAdminReview(b){
  if(!S.admin)return;
@@ -955,7 +953,7 @@ const KEYRE=/^([0-9]{9,15}|[A-Za-z0-9]{20,40})$/;
 let FAV=new Set(),FAVOK=false,FAVUID=null;
 const HEART='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>';
 function mpToast(t){let e=document.getElementById("mpToast");if(!e){e=document.createElement("div");e.id="mpToast";e.className="toast";e.setAttribute("role","status");document.body.appendChild(e)}e.textContent=t;e.classList.add("on");clearTimeout(e._t);e._t=setTimeout(function(){e.classList.remove("on")},2600)}
-function siteUrl(){return location.href.split("#")[0].split("?")[0]}
+function siteUrl(){return "https://jesusocampo1407-maker.github.io/Mayoristas---Paraguay---PV4/"}
 function waShare(t){window.open("https://wa.me/?text="+encodeURIComponent(t),"_blank","noopener")}
 /* favoritos */
 function favPaint(){document.querySelectorAll("#list .fav").forEach(function(b){const on=FAV.has(b.dataset.fk);b.classList.toggle("on",on);b.setAttribute("aria-pressed",on?"true":"false");b.setAttribute("aria-label",on?"Quitar de favoritos":"Guardar en favoritos")})}
@@ -1038,7 +1036,6 @@ $("acct").addEventListener("click",function(e){
   else if(a==="resend")doResend(b);
   else if(a==="refresh")doRefresh(b);
   else if(a==="deleteReview")deleteAdminReview(b);else if(a==="publishOldReviews")publishOldReviews(b);else if(a==="mod")doMod(b);else if(a==="applych")doApply(b);else if(a==="pub")doPublish(b);else if(a==="vis")doVis(b);else if(a==="admedit")admEdit(b)});
-$("acct").addEventListener("input",function(e){if(e.target&&(/^admReview/.test(e.target.id||"")))renderAdminReviews()});
 $("acct").addEventListener("submit",function(e){
   e.preventDefault();const f=e.target.closest("form[data-f]");if(!f)return;const b=f.querySelector('button[type="submit"]'),k=f.dataset.f;
   ({login:doLogin,register:doRegister,reset:doReset,complete:doComplete,biz:doBiz,bizchg:doBizChg,admedit:doAdmEdit})[k](f,b)});
